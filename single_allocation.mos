@@ -1,0 +1,81 @@
+model "Prototype Model"
+ uses "mmxprs"
+
+!!! Change here
+ declarations
+  NHUBS = 8                    ! Number of hubs
+  CITIES = 1..20                        ! Cities
+  FACTOR = 0.8
+  
+  COST : array(CITIES,CITIES,CITIES,CITIES) of real ! (i,j,k,l) Transport cost
+                                         ! from i to j via hubs k and l
+  QUANT: array(CITIES,CITIES) of integer ! Quantity to transport, this should be number of trucks
+  DIST: array(CITIES,CITIES) of integer  ! Distance between cities
+ 
+ 
+  flow: array(CITIES,CITIES,CITIES,CITIES) of mpvar ! flow(i,j,k,l)=1 if 
+                                         ! freight from i to j goes via k & l
+  hub: array(CITIES,CITIES) of mpvar            ! 1 if city is a hub, 0 otherwise
+ end-declarations
+
+
+!! Change here
+ initializations from 'benchmark.dat'
+  DIST QUANT
+ end-initializations
+
+! Calculate costs
+ forall(i,j,k,l in CITIES) 
+  COST(i,j,k,l):= DIST(i,k)+FACTOR*DIST(k,l)+DIST(l,j)
+
+! Objective: total transport cost
+ Cost:= sum(i,j,k,l in CITIES) QUANT(i,j)*COST(i,j,k,l)*flow(i,j,k,l)
+
+! Number of hubs is assigned
+ sum(k in CITIES) hub(k,k) = NHUBS
+ 
+! Single allocation is forced
+forall(i in CITIES)
+	sum(k in CITIES) hub(i,k) = 1
+	
+	
+! i can only be assigned to k if k is assigned as a hub
+forall(i,k in CITIES)
+	hub(i,k)<=hub(k,k)
+
+ 
+! More constraints on flow to be binary
+ forall(i,j,k in CITIES) 
+ 	sum(l in CITIES) flow(i,j,k,l)= hub(i,k)
+  
+ forall(i,j,l in CITIES)
+ 	sum(k in CITIES) flow(i,j,k,l)= hub(j,l)
+ 
+ ! Flow constraint	
+ forall(i,j,k,l in CITIES) flow(i,j,k,l)>=0
+ 		
+ forall(i,k in CITIES) hub(i,k) is_binary
+
+! Solve the problem
+ minimize(Cost)
+ 
+! Solution printing
+ declarations
+  NAMES: array(CITIES) of string         ! Names of cities
+ end-declarations 
+
+
+!! Change here
+ initializations from 'benchmark.dat'
+  NAMES
+ end-initializations
+
+ writeln("Total transport cost: ", getobjval)
+ !write("Hubs:")
+ forall(i,j,k,l in CITIES) 
+ 	if(getsol(flow(i,j,k,l))>0) then
+ 		writeln(NAMES(i),",",NAMES(j),",",NAMES(k),",",NAMES(l))
+ 		!write(NAMES(l))
+ 	end-if
+ 
+end-model

@@ -1,0 +1,71 @@
+model "Hub Loc Multiple Allocation"
+ uses "mmxprs"
+
+!!! Change here
+ declarations
+  NHUBS = 3                         ! Number of hubs
+  CITIES = 1..20    	                    ! Cities
+  FACTOR = 0.6
+  
+  COST : array(CITIES,CITIES,CITIES,CITIES) of real ! (i,j,k,l) Transport cost
+                                         ! from i to j via hubs k and l
+  QUANT: array(CITIES,CITIES) of integer ! Quantity to transport, this should be number of trucks
+  DIST: array(CITIES,CITIES) of integer  ! Distance between cities
+  
+  flow: array(CITIES,CITIES,CITIES,CITIES) of mpvar ! flow(i,j,k,l)=1 if 
+                                         ! freight from i to j goes via k & l
+  hub: array(CITIES) of mpvar            ! 1 if city is a hub, 0 otherwise
+ end-declarations
+
+!!! Change here
+ initializations from 'benchmark.dat'
+  DIST QUANT
+ end-initializations
+
+! Calculate costs
+ forall(i,j,k,l in CITIES) 
+  COST(i,j,k,l):= DIST(i,k)+FACTOR*DIST(k,l)+DIST(l,j)
+
+! Objective: total transport cost
+ Cost:= sum(i,j,k,l in CITIES) QUANT(i,j)*COST(i,j,k,l)*flow(i,j,k,l)
+
+! Number of hubs is assigned
+ sum(k in CITIES) hub(k) = NHUBS
+ 
+! Each OD flow is sent through a certain hub pairs
+forall(i,j in CITIES)
+	sum(k,m in CITIES) flow(i,j,k,m) = 1
+	
+! The following prohibits the flow passing through a non-hub node.
+forall(i,j,k in CITIES)
+	sum(m in CITIES) flow(i,j,k,m)<=hub(k)
+	
+forall (i,j,m in CITIES)
+	sum(k in CITIES) flow(i,j,k,m)<=hub(m)	 
+
+! Binary decision 		
+ forall(k in CITIES) hub(k) is_binary
+
+! Solve the problem
+ minimize(Cost)
+ 
+! Solution printing
+ declarations
+  NAMES: array(CITIES) of string         ! Names of cities
+ end-declarations 
+
+
+!!!Change Here
+ initializations from 'benchmark.dat'
+  NAMES
+ end-initializations
+
+ writeln("Total transport cost: ", getobjval)
+ !write("Hubs:")
+ forall(i,j,k,l in CITIES) 
+ 	if(getsol(flow(i,j,k,l))>0) then
+ 		writeln(NAMES(i),",",NAMES(j),",",NAMES(k),",",NAMES(l))
+ 		!write(NAMES(l))
+ 	end-if
+ 
+end-model
